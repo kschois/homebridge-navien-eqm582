@@ -6,6 +6,7 @@ import { NavienException } from './navien/exceptions/index.js';
 import { NavienApi } from './navien/navien.api.js';
 import { NavienAuth } from './navien/navien.auth.js';
 import { NavienDevice } from './navien/navien.device.js';
+import { DeviceOverride } from './navien/navien.model.js';
 import { NavienService } from './navien/navien.service.js';
 import { NavienSessionManager } from './navien/navien.session-manager.js';
 import { PLATFORM_NAME, PLUGIN_NAME } from './settings.js';
@@ -30,6 +31,7 @@ export type NavienPlatformConfig = PlatformConfig & {
   soundEnabled: boolean;
   separateControl: boolean;
   displayName?: DisplayName[];
+  deviceOverrides?: DeviceOverride[];
 };
 
 /**
@@ -70,7 +72,7 @@ export class NavienHomebridgePlatform implements DynamicPlatformPlugin {
     const auth = new NavienAuth(log);
     const sessionManager = new NavienSessionManager(log, auth, this._createPersist(), this.config);
     const httpApi = new NavienApi(log, sessionManager, this.config.soundEnabled);
-    this.navienService = new NavienService(log, sessionManager, httpApi);
+    this.navienService = new NavienService(log, sessionManager, httpApi, this.config.deviceOverrides);
 
     this.api.on('didFinishLaunching', this.onLaunched.bind(this));
   }
@@ -82,6 +84,7 @@ export class NavienHomebridgePlatform implements DynamicPlatformPlugin {
     // migrate new config @1.8.0
     config.soundEnabled = config.soundEnabled ?? false;
     config.separateControl = config.separateControl ?? false;
+    config.deviceOverrides = config.deviceOverrides ?? [];
 
     return config as NavienPlatformConfig;
   }

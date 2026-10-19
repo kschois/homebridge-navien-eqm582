@@ -136,6 +136,65 @@
           "functionBody": "return model.separateControl;"
         },
         "description": "분리난방의 경우, 애플 홈에서 3개의 액세서리가 생깁니다. 여기서 액세서리 별 이름을 설정할 수 있습니다. 미설정 시, 나비엔 스마트 앱 상의 이름을 사용합니다."
+      },
+      "deviceOverrides": {
+        "title": "Device Overrides / 기기별 설정 (EQM582 등 미검증 모델용)",
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "device": {
+              "title": "Device Name in Navien Smart App / 나비엔 스마트 앱에서의 기기 이름",
+              "type": "string",
+              "description": "설정하고자 하는 기기의 나비엔 스마트 앱 상의 이름을 입력해주세요. (예: 온수 매트)"
+            },
+            "zones": {
+              "title": "Zones / 좌우 구분",
+              "type": "string",
+              "default": "auto",
+              "oneOf": [
+                {
+                  "title": "Auto / 자동 감지",
+                  "enum": [
+                    "auto"
+                  ]
+                },
+                {
+                  "title": "Single / 싱글",
+                  "enum": [
+                    "single"
+                  ]
+                },
+                {
+                  "title": "Double / 좌우 분리",
+                  "enum": [
+                    "double"
+                  ]
+                }
+              ],
+              "description": "좌우 구분이 잘못 감지되는 경우에만 변경해주세요."
+            },
+            "heatMin": {
+              "title": "Min Temperature / 최저 온도",
+              "type": "number",
+              "description": "기기가 온도 범위를 제공하지 않을 때 사용합니다. (EQM582 기본값: 28)"
+            },
+            "heatMax": {
+              "title": "Max Temperature / 최고 온도",
+              "type": "number",
+              "description": "기기가 온도 범위를 제공하지 않을 때 사용합니다. (EQM582 기본값: 45)"
+            },
+            "heatStep": {
+              "title": "Temperature Step / 온도 단위",
+              "type": "number",
+              "description": "온도 조절 단위입니다. (EQM582 기본값: 0.5)"
+            }
+          },
+          "required": [
+            "device"
+          ]
+        },
+        "description": "온도 범위나 좌우 구분이 기기와 맞지 않을 때 기기별로 덮어쓸 수 있습니다. 대부분의 경우 설정할 필요가 없습니다."
       }
     }
   }

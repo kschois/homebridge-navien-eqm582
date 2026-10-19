@@ -36,7 +36,7 @@ export abstract class HeatingMat {
     // set accessory information
     this.accessory.getService(Service.AccessoryInformation)!
       .setCharacteristic(Characteristic.Manufacturer, 'Navien')
-      .setCharacteristic(Characteristic.Model, device.modelName)
+      .setCharacteristic(Characteristic.Model, device.model)
       .setCharacteristic(Characteristic.SerialNumber, device.id);
   }
 

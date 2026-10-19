@@ -82,6 +82,7 @@ npm i -g homebridge-navien-smart
 | `soundEnabled` | If selected, enable the notification sound on operation. (only for supported devices) |
 | `separateControl` | If selected, support left and right separated heating. (only for supported devices) |
 | `displayName` | Set name appears in Apple Home. `device` field must be set to the same as the device name in Navien Smart app. |
+| `deviceOverrides` | Optional. Override zones (`auto` / `single` / `double`) and temperature range (`heatMin`, `heatMax`, `heatStep`) per device. Useful for unverified models such as `EQM582`. |
 | `platform` | value always `NavienSmart` |
 
 If you don't want to put your password in the config, you can use `authMode` = `token` and use `refreshToken` and `accountSeq` instead.
@@ -104,6 +105,26 @@ accountSeq: 12345678
 ```
 
 You can copy and paste `refreshToken` and `accountSeq` to your config.
+
+### EQM582 (Navien Mate water mat)
+
+`EQM582` was controlled by the discontinued "Navien Mate" app, and is now registered in the "Navien Smart" app. Register the mat in Navien Smart first, then the plugin will pick it up like other models.
+
+- If the device does not provide its temperature range, the plugin falls back to 28–45°C in 0.5°C steps.
+- On first status update, the plugin logs the raw reported state of the mat. If something does not work, please share that log line in [this issue](https://github.com/kyle-seongwoo-jun/homebridge-navien-smart/issues/24).
+- You can also print device info and status with `navien inspect <username> <password>`. (This logs in with your account, so Homebridge may need to log in again afterwards.)
+
+```json
+"deviceOverrides": [
+    {
+        "device": "My Water Mat",
+        "zones": "auto",
+        "heatMin": 28,
+        "heatMax": 45,
+        "heatStep": 0.5
+    }
+]
+```
 
 ## Demo
 

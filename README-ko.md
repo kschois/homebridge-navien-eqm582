@@ -78,6 +78,7 @@ npm i -g homebridge-navien-smart
 | `soundEnabled` | 선택한 경우, 조작 시 알림 소리를 활성화합니다. (지원하는 기기에 한함) |
 | `separateControl` | 선택한 경우, 좌우 분리난방을 지원합니다. (지원하는 기기에 한함) |
 | `displayName` | 애플 홈에서 표시되는 이름을 설정합니다. `device` 필드는 Navien Smart 앱에서 등록된 기기 이름과 동일한 값으로 설정해야 합니다. |
+| `deviceOverrides` | 선택. 기기별로 좌우 구분(`auto` / `single` / `double`)과 온도 범위(`heatMin`, `heatMax`, `heatStep`)를 덮어씁니다. `EQM582` 같은 미검증 모델에 유용합니다. |
 | `platform` | 항상 `NavienSmart` |
 
 비밀번호를 설정 파일에 넣고 싶지 않은 경우 `authMode`를 `token`으로 설정하고 대신 `refreshToken`과 `accountSeq`를 사용할 수 있습니다.
@@ -100,6 +101,26 @@ accountSeq: 12345678
 ```
 
 `refreshToken`과 `accountSeq`를 복사하여 설정 파일에 붙여넣으면 됩니다.
+
+### EQM582 (나비엔 메이트 온수매트)
+
+`EQM582`는 서비스가 종료된 "나비엔 메이트" 앱 대신 "나비엔 스마트" 앱에 등록해서 사용합니다. 먼저 나비엔 스마트 앱에 매트를 등록하면 다른 모델과 동일하게 플러그인에서 인식됩니다.
+
+- 기기가 온도 범위를 제공하지 않으면 28–45°C, 0.5°C 단위를 기본값으로 사용합니다.
+- 처음 상태를 받으면 매트가 보고한 원본 상태를 로그에 한 번 출력합니다. 동작에 문제가 있으면 해당 로그를 [이 이슈](https://github.com/kyle-seongwoo-jun/homebridge-navien-smart/issues/24)에 공유해주세요.
+- `navien inspect <username> <password>` 명령으로 기기 정보와 상태를 직접 확인할 수도 있습니다. (계정으로 로그인하므로 이후 홈브리지가 다시 로그인해야 할 수 있습니다.)
+
+```json
+"deviceOverrides": [
+    {
+        "device": "온수매트",
+        "zones": "auto",
+        "heatMin": 28,
+        "heatMax": 45,
+        "heatStep": 0.5
+    }
+]
+```
 
 ## 데모 영상
 

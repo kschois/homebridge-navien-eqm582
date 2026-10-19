@@ -1,12 +1,17 @@
 /* eslint-disable @typescript-eslint/no-unsafe-declaration-merging */
 import { Device } from './interfaces/index.js';
+import { DeviceOverride, findModelProfile, normalizeHeatControl, toFiniteNumber } from './navien.model.js';
 
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface NavienDevice extends Device { }
 
 export class NavienDevice {
-  constructor(json: Device) {
+  /** user defined overrides from config.json */
+  override?: DeviceOverride;
+
+  constructor(json: Device, override?: DeviceOverride) {
     Object.assign(this, json);
+    this.override = override;
   }
 
   get id() {
@@ -15,6 +20,18 @@ export class NavienDevice {
 
   get name() {
     return this.Properties.nickName.mainItem;
+  }
+
+  /**
+   * Model name of the device, e.g. `EME520`, `EQM582`.
+   * Some models do not have `modelName`, so fallback to `model` in the registry.
+   */
+  get model(): string {
+    return this.modelName || this.Properties?.registry?.attributes?.model || this.modelCode;
+  }
+
+  get profile() {
+    return findModelProfile(this.model);
   }
 
   get nicknames() {
@@ -27,6 +44,13 @@ export class NavienDevice {
   }
 
   get isDouble() {
+    switch (this.override?.zones) {
+      case 'single':
+        return false;
+      case 'double':
+        return true;
+    }
+
     /*
      * XXX(junbongwe): There is no explicit field or way to query whether a device is double or single.
      * For now, just check if there exists field `side` in `Properties.nickName`.
@@ -35,14 +59,17 @@ export class NavienDevice {
   }
 
   get functions() {
-    const { functions } = this.Properties.registry.attributes;
-    const { heatControl } = functions;
+    const heatControl = this.Properties?.registry?.attributes?.functions?.heatControl;
+    const { rangeMin, rangeMax, step } = normalizeHeatControl(heatControl, this.profile);
 
-    const step = parseFloat(heatControl.unit);
+    // `min` is used as "off" level, so it is one step lower than `rangeMin`.
+    const min = toFiniteNumber(this.override?.heatMin) ?? rangeMin;
+    const max = toFiniteNumber(this.override?.heatMax) ?? rangeMax;
+    const unit = toFiniteNumber(this.override?.heatStep) ?? step;
     const heatRange = {
-      min: heatControl.rangeMin - step,
-      max: heatControl.rangeMax,
-      step: step,
+      min: min - unit,
+      max: max,
+      step: unit,
     };
 
     return {

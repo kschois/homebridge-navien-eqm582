@@ -1,120 +1,11 @@
 import { Logger } from 'homebridge';
 import { BehaviorSubject, Subscription } from 'rxjs';
 
-import { DoubleHeaterState, NavienReportedState, OperationMode, SingleHeaterState } from '../aws/interfaces/index.js';
+import { NavienReportedState } from '../aws/interfaces/index.js';
 import { AwsPubSub } from '../aws/pubsub.js';
 import { HeatingZone } from './interfaces/index.js';
 import { NavienDevice } from './navien.device.js';
-
-interface NavienDeviceStatus {
-  isConnected: boolean;
-  isPowerOn?: boolean;
-  isEnabled?: boolean;
-  isEnabled2?: boolean;
-  currentTemperature?: number;
-  targetTemperature?: number;
-  currentTemperature2?: number;
-  targetTemperature2?: number;
-  isLocked?: boolean;
-}
-
-class NavienDeviceStatusParser {
-  constructor(private readonly isDouble: boolean) { }
-
-  parseStatusFrom(state: NavienReportedState): NavienDeviceStatus {
-    const isConnected = state.connected;
-    const status: NavienDeviceStatus = { isConnected };
-
-    // if device is disconnected,
-    // no need to parse other properties
-    if (!isConnected) {
-      return status;
-    }
-
-    // power on/off
-    status.isPowerOn = 'operationMode' in state ?
-      state.operationMode! === OperationMode.ON :
-      undefined;
-
-    // temperature
-    if ('heater' in state) {
-      const heater = state.heater!;
-      if (this.isDouble) {
-        const { left, right } = heater as DoubleHeaterState;
-
-        status.isEnabled = left?.enable;
-        status.currentTemperature = left?.temperature?.current;
-        status.targetTemperature = left?.temperature?.set;
-
-        status.isEnabled2 = right?.enable;
-        status.currentTemperature2 = right?.temperature?.current;
-        status.targetTemperature2 = right?.temperature?.set;
-      } else {
-        const single = (heater as SingleHeaterState).single;
-
-        status.isEnabled = single?.enable;
-        status.currentTemperature = single?.temperature?.current;
-        status.targetTemperature = single?.temperature?.set;
-      }
-    }
-
-    // locked
-    status.isLocked = state.childLock;
-
-    return status;
-  }
-
-  // this logic is added on #38 (https://github.com/kyle-seongwoo-jun/homebridge-navien-smart/pull/38)
-  // and split from parseStatusFrom() to make it more readable
-  //
-  // but i don't understand clearly why this logic is needed.
-  adjustStatus(
-    originalStatus: NavienDeviceStatus,
-    targetTemperature: number,
-    targetTemperature2: number,
-    heatRange: { min: number; max: number; step: number },
-  ): NavienDeviceStatus {
-    const status = { ...originalStatus };
-
-    // adjust temperatureSet when left is enabled/disabled
-    if (status.isEnabled !== undefined) {
-      if (status.isEnabled) {
-        if (targetTemperature <= heatRange.min) {
-          status.targetTemperature = heatRange.min + heatRange.step;
-        }
-      } else {
-        if (targetTemperature > heatRange.min) {
-          status.targetTemperature = heatRange.min;
-        }
-      }
-    }
-
-    // adjust isLeftEnabled when temperatureSet is changed
-    if (status.targetTemperature !== undefined) {
-      status.isEnabled = status.targetTemperature > heatRange.min;
-    }
-
-    // adjust temperatureSetRight when right is enabled/disabled
-    if (status.isEnabled2 !== undefined) {
-      if (status.isEnabled2) {
-        if (targetTemperature2 <= heatRange.min) {
-          status.targetTemperature2 = heatRange.min + heatRange.step;
-        }
-      } else {
-        if (targetTemperature2 > heatRange.min) {
-          status.targetTemperature2 = heatRange.min;
-        }
-      }
-    }
-
-    // adjust isRightEnabled when temperatureSetRight is changed
-    if (status.targetTemperature2 !== undefined) {
-      status.isEnabled2 = status.targetTemperature2 > heatRange.min;
-    }
-
-    return status;
-  }
-}
+import { NavienDeviceStatus, NavienDeviceStatusParser } from './navien.device-status.parser.js';
 
 export class NavienDeviceStatusRepository {
   private readonly parser: NavienDeviceStatusParser;
@@ -138,6 +29,7 @@ export class NavienDeviceStatusRepository {
   private readonly targetTemperature2Subject: BehaviorSubject<number>;
   private readonly isLockedSubject: BehaviorSubject<boolean>;
   private readonly subscription: Subscription;
+  private hasLoggedRawState = false;
 
   constructor(
     private readonly log: Logger,
@@ -175,6 +67,7 @@ export class NavienDeviceStatusRepository {
 
       // parse status
       const state = event.payload.state.reported!;
+      this.logRawStateOfUnverifiedModel(state);
       const originalStatus = this.parser.parseStatusFrom(state);
       const status = this.parser.adjustStatus(originalStatus, this._targetTemperature, this._targetTemperature2, heatRange);
 
@@ -208,6 +101,25 @@ export class NavienDeviceStatusRepository {
       this.rightTargetTemperature = status.targetTemperature2 ?? this._targetTemperature2;
       this.isLocked = status.isLocked ?? this._isLocked;
     });
+  }
+
+  /**
+   * Log raw reported state once for unverified models (e.g. EQM582),
+   * so users can share it to improve support for their model.
+   */
+  private logRawStateOfUnverifiedModel(state: NavienReportedState) {
+    const { profile } = this.device;
+    if (this.hasLoggedRawState || !profile || profile.verified) {
+      return;
+    }
+    this.hasLoggedRawState = true;
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { info, ...rest } = state;
+    this.log.info(
+      `[AWS PubSub] ${this.device.model} is not verified yet. reported state of "${this.device.name}":`,
+      JSON.stringify(rest),
+    );
   }
 
   logAdjustedProperties(originalStatus: NavienDeviceStatus, status: NavienDeviceStatus) {

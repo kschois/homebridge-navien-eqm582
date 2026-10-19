@@ -10,6 +10,7 @@ import { Device, HeatingZone } from './interfaces/index.js';
 import { NavienApi } from './navien.api.js';
 import { NavienDevice } from './navien.device.js';
 import { NavienDeviceStatusRepository } from './navien.device-status.js';
+import { DeviceOverride } from './navien.model.js';
 import { NavienSessionManager } from './navien.session-manager.js';
 
 export class NavienService {
@@ -20,6 +21,7 @@ export class NavienService {
     private readonly log: Logging,
     private readonly sessionManager: NavienSessionManager,
     private readonly api: NavienApi,
+    private readonly deviceOverrides: DeviceOverride[] = [],
   ) { }
 
   public async ready() {
@@ -67,7 +69,11 @@ export class NavienService {
     });
 
     // create devices from json
-    const devices = jsonArray.map((json) => new NavienDevice(json));
+    const devices = jsonArray.map((json) => {
+      const name = json.Properties?.nickName?.mainItem;
+      const override = this.deviceOverrides.find((item) => item.device === name);
+      return new NavienDevice(json, override);
+    });
     this.deviceStatusRepositories = Object.fromEntries(
       devices.map((device) => [
         device.id,
@@ -75,6 +81,7 @@ export class NavienService {
       ]),
     );
     this.log.info('Devices:', devices.map((device) => device.name));
+    devices.forEach((device) => this._logDeviceSummary(device));
 
     // load current state from AWS
     devices.forEach((device) => {
@@ -84,6 +91,32 @@ export class NavienService {
     });
 
     return devices;
+  }
+
+  private _logDeviceSummary(device: NavienDevice) {
+    const { profile, override } = device;
+    const { heatRange } = device.functions;
+    const hasHeatControl = !!device.Properties?.registry?.attributes?.functions?.heatControl;
+
+    this.log.info(`Device "${device.name}":`, {
+      model: device.model,
+      zones: device.isDouble ? 'double' : 'single',
+      heatRange: `${heatRange.min + heatRange.step}-${heatRange.max} (step: ${heatRange.step})`,
+      ...(override ? { override } : {}),
+    });
+
+    if (!hasHeatControl) {
+      this.log.warn(
+        `Device "${device.name}" (${device.model}) does not provide heat control info. ` +
+        'Using default temperature range. You can adjust it with `deviceOverrides` in config.',
+      );
+    }
+    if (profile && !profile.verified) {
+      this.log.warn(
+        `${profile.model} support is not verified yet. If something does not work, ` +
+        'please report the logs to https://github.com/kyle-seongwoo-jun/homebridge-navien-smart/issues/24',
+      );
+    }
   }
 
   public getDeviceStatusRepositoryOf(device: NavienDevice) {
